@@ -92,6 +92,11 @@ class PrivateMessages
         )
         ->addTemplate('index.php')->display();
     }
+    
+    public function info()
+    {
+        echo 'PM Plugin page';
+    }
 
     public function delete()
     {
