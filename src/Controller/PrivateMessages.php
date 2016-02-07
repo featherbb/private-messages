@@ -92,6 +92,23 @@ class PrivateMessages
         )
         ->addTemplate('index.php')->display();
     }
+    
+    public function info()
+    {
+        // Update permissions
+        if ($this->feather->request->isPost()) {
+            $this->model->update_permissions();
+        }
+
+        $this->feather->template
+            ->setPageInfo(array(
+                    'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages')),
+                    'groups' => $this->model->fetch_groups(),
+                    'admin_console' => true,
+                )
+            )
+            ->addTemplate('info.php')->display();
+    }
 
     public function delete()
     {
