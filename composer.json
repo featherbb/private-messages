@@ -1,4 +1,16 @@
 {
+    "name": "featherbb-plugin/private-messages",
+    "type": "library",
+    "description": "Send private messages to other users of community.",
+    "require": {
+        "php": ">=5.3.0"
+    },
+    "authors": [{
+		"name": "beaver",
+		"role": "Contributor"
+	}],
+	"licence": "MIT",
+	"keywords": ["featherbb", "private message", "messaging"],
     "autoload": {
         "psr-4": {
             "FeatherBB\\Plugins\\": "src/"
