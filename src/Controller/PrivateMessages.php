@@ -97,6 +97,22 @@ class PrivateMessages
         ->addTemplate('index.php')->display();
     }
 
+
+    public function info()
+    {
+        // Update permissions
+        if (Request::isPost()) {
+            return $this->model->update_permissions();
+        }
+        return View::setPageInfo(array(
+                'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages')),
+                'groups' => $this->model->fetch_groups(),
+                'admin_console' => true,
+            )
+        )
+        ->addTemplate('info.php')->display();
+    }
+
     public function delete($req, $res, $args)
     {
         if (!Input::post('topics'))

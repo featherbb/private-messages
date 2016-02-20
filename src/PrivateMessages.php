@@ -119,6 +119,10 @@ class PrivateMessages extends BasePlugin
             $installer->create_table(ForumSettings::get('db_prefix').$table, $sql);
         }
 
+        DB::for_table('groups')->raw_execute('ALTER TABLE '.ForumSettings::get('db_prefix').'groups ADD `g_pm_limit` smallint(3) NOT NULL DEFAULT \'0\'');
+        DB::for_table('groups')->raw_execute('ALTER TABLE '.ForumSettings::get('db_prefix').'groups ADD `g_use_pm` tinyint(1) NOT NULL DEFAULT \'0\'');
+        DB::for_table('groups')->raw_execute('ALTER TABLE '.ForumSettings::get('db_prefix').'groups ADD `g_pm_folder_limit` int(3) NOT NULL DEFAULT \'0\'');
+
         // Create default inboxes
         $folders = array(
             __('New', 'private_messages'),
@@ -146,6 +150,15 @@ class PrivateMessages extends BasePlugin
             if ($tableExists)
             {
                 $db->exec('DROP TABLE '.ForumSettings::get('db_prefix').$i);
+            }
+        }
+        $columns = ['g_pm_limit', 'g_use_pm', 'g_pm_folder_limit'];
+        foreach ($columns as $i)
+        {
+            $columnExists = DB::for_table('groups')->raw_query('SHOW COLUMNS FROM '. ForumSettings::get('db_prefix') . 'groups LIKE \'' . $i .'\'')->find_one();
+            if ($columnExists)
+            {
+                $db->exec('ALTER TABLE '.ForumSettings::get('db_prefix').'groups DROP COLUMN '.$i);
             }
         }
     }
