@@ -3,7 +3,7 @@
     "type": "library",
     "description": "Send private messages to other users of community.",
     "require": {
-        "php": ">=5.3.0"
+        "php": ">=5.5.0"
     },
     "authors": [{
 		"name": "beaver",
