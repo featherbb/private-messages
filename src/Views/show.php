@@ -1,5 +1,18 @@
 <?php
-// var_dump($messages, $cur_conv);
+
+/**
+ * Copyright (C) 2015-2016 FeatherBB
+ * based on code by (C) 2008-2015 FluxBB
+ * and Rickard Andersson (C) 2002-2008 PunBB
+ * License: http://www.gnu.org/licenses/gpl.html GPL version 2 or higher.
+ */
+
+use FeatherBB\Core\Utils;
+
+// Make sure no one attempts to run this script "directly"
+if (!isset($feather)) {
+    exit;
+}
 ?>
 
         <div class="block">
@@ -8,23 +21,23 @@
                 foreach ($messages as $message) {
             ?>
             <div id="p<?= $message['id'] ?>" class="blockpost<?= ($message_count % 2 == 0) ? ' roweven' : ' rowodd' ?><?= ($message['id'] == $cur_conv['first_post_id']) ? ' firstpost' : ''; ?><?= ($message_count == 1) ? ' blockpost1' : ''; ?>">
-                <h2><span class="conr">#<?= ($start_from + $message_count) ?></span> <a href="<?= $feather->urlFor('viewPost', ['pid' => $message['id']]).'#p'.$message['id'] ?>"><?= $feather->utils->format_time($message['sent']) ?></a></h2>
+                <h2><span class="conr">#<?= ($start_from + $message_count) ?></span> <a href="<?= Router::pathFor('viewPost', ['pid' => $message['id']]).'#p'.$message['id'] ?>"><?= Utils::format_time($message['sent']) ?></a></h2>
                 <div class="box">
                     <div class="inbox">
                         <div class="postbody">
                             <div class="postleft">
                                 <dl>
-                                    <dt><strong><a href="<?= $feather->urlFor('userProfile', ['id' => $message['poster_id']]) ?>"><span><?= $feather->utils->escape($message['username'])?></span></a></strong></dt>
-                                    <dd class="usertitle"><strong><?= $feather->utils->get_title($message) ?></strong></dd>
+                                    <dt><strong><a href="<?= Router::pathFor('userProfile', ['id' => $message['poster_id']]) ?>"><span><?= Utils::escape($message['username'])?></span></a></strong></dt>
+                                    <dd class="usertitle"><strong><?= Utils::get_title($message) ?></strong></dd>
                                 </dl>
                             </div>
                             <div class="postright">
                                 <h3><?php if ($message['id'] != $cur_conv['first_post_id']) { _e('Re').' '; } ?>
-                                    <?= $feather->utils->escape($cur_conv['subject']) ?>
+                                    <?= Utils::escape($cur_conv['subject']) ?>
                                 </h3>
                                 <div class="postmsg">
                                     <p>
-                                        <?= $feather->utils->escape($message['message'])."\n" ?>
+                                        <?= Utils::escape($message['message'])."\n" ?>
                                     </p>
                                 </div>
                             </div>

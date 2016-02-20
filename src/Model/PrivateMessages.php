@@ -12,19 +12,9 @@ namespace FeatherBB\Plugins\Model;
 
 use FeatherBB\Core\Database as DB;
 use FeatherBB\Core\Error;
-use FeatherBB\Core\Url;
 
 class PrivateMessages
 {
-    public function __construct()
-    {
-        $this->feather = \Slim\Slim::getInstance();
-        $this->config = $this->feather->config;
-        $this->user = $this->feather->user;
-        $this->request = $this->feather->request;
-        $this->hooks = $this->feather->hooks;
-    }
-
     // Get all inboxes owned by a user
     public function getUserFolders($uid)
     {
@@ -305,14 +295,14 @@ class PrivateMessages
                     ->set(array(
                         'conversation_id'    =>    $conv_id,
                         'user_id'    =>    $user,
-                        'viewed'    =>    (($user == $this->feather->user->id) ? '1' : '0')))
+                        'viewed'    =>    (($user == Container::get('user')->id) ? '1' : '0')))
                     ->save();
             }
         } else {
             // Reply
             $notifs = DB::for_table('pms_data')
                 ->where('conversation_id', $conv_id)
-                ->where_not_equal('user_id', $this->feather->user->id)
+                ->where_not_equal('user_id', Container::get('user')->id)
                 ->find_result_set();
             $notifs->set('viewed', 0)
                 ->save();
@@ -329,7 +319,7 @@ class PrivateMessages
             ->select_many($select)
             ->left_outer_join('users', array('u.id', '=', 'm.poster_id'), 'u')
             ->inner_join('groups', array('g.g_id', '=', 'u.group_id'), 'g')
-            ->raw_join('LEFT OUTER JOIN '.$this->feather->forum_settings['db_prefix'].'online', "o.user_id!=1 AND o.idle=0 AND o.user_id=u.id", 'o')
+            ->raw_join('LEFT OUTER JOIN '.ForumSettings::get('db_prefix').'online', "o.user_id!=1 AND o.idle=0 AND o.user_id=u.id", 'o')
             ->where('m.conversation_id', $conv_id)
             ->order_by_asc('m.sent')
             ->find_array();
@@ -465,57 +455,5 @@ class PrivateMessages
             ->where('user_id', $user_id)
             ->find_one();
         return $result->delete();
-    }
-
-    public function fetch_groups()
-    {
-        $result = DB::for_table('groups')->order_by('g_id')->find_many();
-        $groups = array();
-        foreach ($result as $cur_group) {
-            $groups[$cur_group['g_id']] = $cur_group;
-        }
-
-        return $groups;
-    }
-
-    public function update_permissions()
-    {
-        $form = array_map('intval', $this->request->post());
-        $form = $this->hooks->fire('model.admin.permissions.plugins.private-messages.form', $form);
-
-        $update = array();
-
-        foreach ($form as $key => $input) {
-            // Make sure the input is never a negative value
-            if ($input < 0) {
-                $input = 0;
-            }
-
-            // Get the group ID from key_gX
-            $group_id = filter_var($key, FILTER_SANITIZE_NUMBER_INT);
-            if ($group_id != '') {
-                // Clean key without the group ID
-                if ($group_id < 10) {
-                    $key_cleaned = substr($key, 0, -3);
-                }
-                elseif ($group_id < 100) {
-                    $key_cleaned = substr($key, 0, -4);
-                }
-                else {
-                    $key_cleaned = substr($key, 0, -5);
-                }
-                // Build the array for the query
-                $update[$group_id]['g_'.$key_cleaned] = $input;
-            }
-        }
-
-        foreach ($update as $group_id => $values) {
-            DB::for_table('groups')
-                ->find_one($group_id)
-                ->set($values)
-                ->save();
-        }
-
-        Url::redirect($this->feather->urlFor('infoPlugin', ['name' => 'private-messages']), __('Perms updated redirect'));
     }
 }

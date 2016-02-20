@@ -30,7 +30,7 @@ if (!empty($errors)) { ?>
                                                 <div><input type="submit" name="add_block" value="<?php _e('Submit') ?>" tabindex="2" /></div>
                                             </th>
                                             <td>
-                                                <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                                                <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                                                 <input type="text" name="req_username" value="<?= $username ?>" size="35" maxlength="80" tabindex="1" required autofocus />
                                             </td>
                                         </tr>
@@ -44,7 +44,7 @@ if (!empty($errors)) { ?>
                 <h2 class="block2"><span><?php _e('Blocked Users', 'private_messages') ?></span></h2>
                 <div class="box">
                     <form method="post" action="">
-                        <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                        <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                         <div class="inform">
                             <fieldset>
                                 <div class="infldset">

@@ -20,7 +20,7 @@ if (!empty($errors)) { ?>
                 <h2><span><?php _e('Add folder', 'private_messages') ?></span></h2>
                 <div class="box">
                     <form id="folder" action="" method="post" onsubmit="return process_form(this)">
-                        <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                        <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                         <div class="inform">
                             <fieldset>
                                 <legend><?php _e('Add folder', 'private_messages') ?></legend>
@@ -43,7 +43,7 @@ if (!empty($folders)): ?>
                 <h2 class="block2"><span><?php _e('My Folders', 'private_messages') ?></span></h2>
                 <div class="box">
                     <form method="post" action="">
-                        <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                        <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                         <div class="inform">
                             <fieldset>
                                 <div class="infldset">

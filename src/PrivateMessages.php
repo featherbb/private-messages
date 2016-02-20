@@ -12,50 +12,45 @@ namespace FeatherBB\Plugins;
 use FeatherBB\Core\Database as DB;
 use FeatherBB\Core\Error;
 use FeatherBB\Core\Plugin as BasePlugin;
+use FeatherBB\Middleware\LoggedIn;
 
 class PrivateMessages extends BasePlugin
 {
 
     public function run()
     {
-        $feather = $this->feather;
-
-        $this->hooks->bind('admin.plugin.menu', [$this, 'getName']);
-        $this->hooks->bind('view.header.navlinks', [$this, 'addNavlink']);
-        $this->hooks->bind('model.print_posts.one', function ($cur_post) use ($feather) {
-            $cur_post['user_contacts'][] = '<span class="email"><a href="'.$feather->urlFor('Conversations.send', ['uid' => $cur_post['poster_id']]).'">PM</a></span>';
+        Container::get('hooks')->bind('admin.plugin.menu', [$this, 'getName']);
+        Container::get('hooks')->bind('view.header.navlinks', [$this, 'addNavlink']);
+        Container::get('hooks')->bind('model.print_posts.one', function ($cur_post) {
+            $cur_post['user_contacts'][] = '<span class="email"><a href="'.Router::pathFor('Conversations.send', ['uid' => $cur_post['poster_id']]).'">PM</a></span>';
             return $cur_post;
         });
 
-        $this->feather->group('/conversations',
-            function() use ($feather) {
-                if($feather->user->is_guest) throw new Error(__('No permission'), 403);
-            }, function() use ($feather){
-                $feather->map('/inbox(/:inbox_id)(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:index')->conditions(array('inbox_id' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.home');
-                $feather->map('/inbox(/:inbox_id)/page(/:page)(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:index')->conditions(array('inbox_id' => '[0-9]+', 'page' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.home.page');
-                $feather->get('/thread(/:tid)(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:show')->conditions(array('tid' => '[0-9]+'))->name('Conversations.show');
-                $feather->get('/thread(/:tid)/page(/:page)(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:show')->conditions(array('tid' => '[0-9]+', 'page' => '[0-9]+'))->name('Conversations.show.page');
-                $feather->map('/send(/:uid)(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:send')->conditions(array('uid' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.send');
-                $feather->map('/reply/:tid(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:reply')->conditions(array('tid' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.reply');
-                $feather->map('/quote/:mid(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:reply')->conditions(array('mid' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.quote');
-                $feather->map('/options/blocked(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:blocked')->conditions(array('mid' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.blocked');
-                $feather->map('/options/folders(/)', '\FeatherBB\Plugins\Controller\PrivateMessages:folders')->conditions(array('mid' => '[0-9]+'))->via('GET', 'POST')->name('Conversations.folders');
-            }
-        );
+        Route::group('/conversations', function() {
+            Route::map(['GET', 'POST'], '/inbox[/{inbox_id:[0-9]+}]', '\FeatherBB\Plugins\Controller\PrivateMessages:index')->setName('Conversations.home');
+            Route::map(['GET', 'POST'], '/inbox/{inbox_id:[0-9]+}/page/{page:[0-9]+}', '\FeatherBB\Plugins\Controller\PrivateMessages:index')->setName('Conversations.home.page');
+            Route::get('/thread/{tid:[0-9]+}', '\FeatherBB\Plugins\Controller\PrivateMessages:show')->setName('Conversations.show');
+            Route::get('/thread/{tid:[0-9]+}/page/{page:[0-9]+}', '\FeatherBB\Plugins\Controller\PrivateMessages:show')->setName('Conversations.show.page');
+            Route::map(['GET', 'POST'], '/send[/{uid:[0-9]+}]', '\FeatherBB\Plugins\Controller\PrivateMessages:send')->setName('Conversations.send');
+            Route::map(['GET', 'POST'], '/reply/{tid:[0-9]+}', '\FeatherBB\Plugins\Controller\PrivateMessages:reply')->setName('Conversations.reply');
+            Route::map(['GET', 'POST'], '/quote/{mid:[0-9]+}', '\FeatherBB\Plugins\Controller\PrivateMessages:reply')->setName('Conversations.quote');
+            Route::map(['GET', 'POST'], '/options/blocked', '\FeatherBB\Plugins\Controller\PrivateMessages:blocked')->setName('Conversations.blocked');
+            Route::map(['GET', 'POST'], '/options/folders', '\FeatherBB\Plugins\Controller\PrivateMessages:folders')->setName('Conversations.folders');
+        })->add(new \FeatherBB\Plugins\Middleware\LoggedIn());
 
-        $this->feather->template->addAsset('css', 'plugins/private-messages/src/style/private-messages.css');
+        View::addAsset('css', 'plugins/private-messages/src/style/private-messages.css');
     }
 
     public function addNavlink($navlinks)
     {
-        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.$this->feather->user->language.'/private-messages.mo');
-        if (!$this->feather->user->is_guest) {
-            $nbUnread = Model\PrivateMessages::countUnread($this->feather->user->id);
+        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.Container::get('user')->language.'/private-messages.mo');
+        if (!Container::get('user')->is_guest) {
+            $nbUnread = Model\PrivateMessages::countUnread(Container::get('user')->id);
             $count = ($nbUnread > 0) ? ' ('.$nbUnread.')' : '';
-            $navlinks[] = '4 = <a href="'.$this->feather->urlFor('Conversations.home').'">PMS'.$count.'</a>';
+            $navlinks[] = '4 = <a href="'.Router::pathFor('Conversations.home').'">PMS'.$count.'</a>';
             if ($nbUnread > 0) {
-                $this->hooks->bind('header.toplist', function($toplists) {
-                    $toplists[] = '<li class="reportlink"><span><strong><a href="'.$this->feather->urlFor('Conversations.home', ['inbox_id' => 1]).'">'.__('Unread messages', 'private_messages').'</a></strong></span></li>';
+                Container::get('hooks')->bind('header.toplist', function($toplists) {
+                    $toplists[] = '<li class="reportlink"><span><strong><a href="'.Router::pathFor('Conversations.home', ['inbox_id' => 1]).'">'.__('Unread messages', 'private_messages').'</a></strong></span></li>';
                     return $toplists;
                 });
             }
@@ -65,7 +60,7 @@ class PrivateMessages extends BasePlugin
 
     public function install()
     {
-        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.$this->feather->forum_settings['o_default_lang'].'/private-messages.mo');
+        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.ForumSettings::get('o_default_lang').'/private-messages.mo');
 
         $database_scheme = array(
             'pms_data' => "CREATE TABLE IF NOT EXISTS %t% (
@@ -121,12 +116,8 @@ class PrivateMessages extends BasePlugin
         // Create tables
         $installer = new \FeatherBB\Model\Install();
         foreach ($database_scheme as $table => $sql) {
-            $installer->create_table($this->feather->forum_settings['db_prefix'].$table, $sql);
+            $installer->create_table(ForumSettings::get('db_prefix').$table, $sql);
         }
-
-        DB::for_table('groups')->raw_execute('ALTER TABLE '.$this->feather->forum_settings['db_prefix'].'groups ADD `g_pm_limit` smallint(3) NOT NULL DEFAULT \'0\'');
-        DB::for_table('groups')->raw_execute('ALTER TABLE '.$this->feather->forum_settings['db_prefix'].'groups ADD `g_use_pm` tinyint(1) NOT NULL DEFAULT \'0\'');
-        DB::for_table('groups')->raw_execute('ALTER TABLE '.$this->feather->forum_settings['db_prefix'].'groups ADD `g_pm_folder_limit` int(3) NOT NULL DEFAULT \'0\'');
 
         // Create default inboxes
         $folders = array(
@@ -148,24 +139,13 @@ class PrivateMessages extends BasePlugin
     public function remove()
     {
         $db = DB::get_db();
-
         $tables = ['pms_data', 'pms_folders', 'pms_messages', 'pms_conversations', 'pms_blocks'];
         foreach ($tables as $i)
         {
-            $tableExists = DB::for_table($i)->raw_query('SHOW TABLES LIKE "'. $this->feather->forum_settings['db_prefix'].$i . '"')->find_one();
+            $tableExists = DB::for_table($i)->raw_query('SHOW TABLES LIKE "'. ForumSettings::get('db_prefix').$i . '"')->find_one();
             if ($tableExists)
             {
-                $db->exec('DROP TABLE '.$this->feather->forum_settings['db_prefix'].$i);
-            }
-        }
-
-        $columns = ['g_pm_limit', 'g_use_pm', 'g_pm_folder_limit'];
-        foreach ($columns as $i)
-        {
-            $columnExists = DB::for_table('groups')->raw_query('SHOW COLUMNS FROM '. $this->feather->forum_settings['db_prefix'] . 'groups LIKE \'' . $i .'\'')->find_one();
-            if ($columnExists)
-            {
-                $db->exec('ALTER TABLE '.$this->feather->forum_settings['db_prefix'].'groups DROP COLUMN '.$i);
+                $db->exec('DROP TABLE '.ForumSettings::get('db_prefix').$i);
             }
         }
     }

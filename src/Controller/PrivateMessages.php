@@ -17,28 +17,33 @@ use FeatherBB\Core\Utils;
 
 class PrivateMessages
 {
-    protected $feather, $request, $model, $crumbs, $inboxes;
+    protected $model, $crumbs, $inboxes;
 
     public function __construct()
     {
-        $this->feather = \Slim\Slim::getInstance();
-        $this->request = $this->feather->request;
         $this->model = new \FeatherBB\Plugins\Model\PrivateMessages();
-        load_textdomain('private_messages', dirname(dirname(__FILE__)).'/lang/'.$this->feather->user->language.'/private-messages.mo');
-        load_textdomain('featherbb', $this->feather->forum_env['FEATHER_ROOT'].'featherbb/lang/'.$this->feather->user->language.'/misc.mo');
-        $this->feather->template->addTemplatesDirectory(dirname(dirname(__FILE__)).'/Views', 5)->setPageInfo(['active_page' => 'navextra1']);
+        load_textdomain('private_messages', dirname(dirname(__FILE__)).'/lang/'.Container::get('user')->language.'/private-messages.mo');
+        load_textdomain('featherbb', ForumEnv::get('FEATHER_ROOT').'featherbb/lang/'.Container::get('user')->language.'/misc.mo');
+        View::addTemplatesDirectory(dirname(dirname(__FILE__)).'/Views', 5)->setPageInfo(['active_page' => 'navextra1']);
         $this->crumbs =array(
-            $this->feather->urlFor('Conversations.home') => __('PMS', 'private_messages')
+            Router::pathFor('Conversations.home') => __('PMS', 'private_messages')
         );
     }
 
-    public function index($fid = 2, $page = 1)
+    public function index($req, $res, $args)
     {
         // Set default page to "Inbox" folder
-        $fid = !empty($fid) ? intval($fid) : 2;
-        $uid = intval($this->feather->user->id);
+        if (!isset($args['inbox_id'])) {
+            $args['inbox_id'] = 2;
+        }
 
-        if ($action = $this->request->post('action')) {
+        if (!isset($args['page'])) {
+            $args['page'] = 1;
+        }
+
+        $uid = intval(Container::get('user')->id);
+
+        if ($action = Input::post('action')) {
             switch ($action) {
                 case 'move':
                     $this->move();
@@ -53,86 +58,67 @@ class PrivateMessages
                     $this->markRead(0);
                     break;
                 default:
-                    Url::redirect($this->feather->urlFor('Conversations.home', ['inbox_id' => $this->request->post('inbox_id')]));
+                    return Router::redirect(Router::pathFor('Conversations.home', ['inbox_id' => Input::post('inbox_id')]));
                     break;
             }
         }
 
-        if ($this->inboxes = $this->model->getInboxes($this->feather->user->id)) {
-            if (!in_array($fid, array_keys($this->inboxes))) {
+        if ($this->inboxes = $this->model->getInboxes(Container::get('user')->id)) {
+            if (!in_array($args['inbox_id'], array_keys($this->inboxes))) {
                 throw new Error(__('Wrong folder owner', 'private_messages'), 403);
             }
         }
         // Page data
-        $num_pages = ceil($this->inboxes[$fid]['nb_msg'] / $this->feather->user['disp_topics']);
-        $p = (!isset($page) || $page <= 1 || $page > $num_pages) ? 1 : intval($page);
-        $start_from = $this->feather->user['disp_topics'] * ($p - 1);
-        $paging_links = Url::paginate($num_pages, $p, $this->feather->urlFor('Conversations.home', ['id' => $fid]).'/#');
+        $num_pages = ceil($this->inboxes[$args['inbox_id']]['nb_msg'] / Container::get('user')['disp_topics']);
+        $p = (!isset($args['page']) || $args['page'] <= 1 || $args['page'] > $num_pages) ? 1 : intval($args['page']);
+        $start_from = Container::get('user')['disp_topics'] * ($p - 1);
+        $paging_links = Url::paginate($num_pages, $p, Router::pathFor('Conversations.home', ['id' => $args['inbox_id']]).'/#');
 
         // Make breadcrumbs
-        $this->crumbs[$this->feather->urlFor('Conversations.home', ['inbox_id' => $fid])] = $this->inboxes[$fid]['name'];
+        $this->crumbs[Router::pathFor('Conversations.home', ['inbox_id' => $args['inbox_id']])] = $this->inboxes[$args['inbox_id']]['name'];
         $this->crumbs[] = __('My conversations', 'private_messages');
         Utils::generateBreadcrumbs($this->crumbs, array(
-            'link' => $this->feather->urlFor('Conversations.send'),
+            'link' => Router::pathFor('Conversations.send'),
             'text' => __('Send', 'private_messages')
         ));
 
-        $this->generateMenu($this->inboxes[$fid]['name']);
-        $this->feather->template->addAsset('js', 'style/imports/common.js', array('type' => 'text/javascript'));
-        $this->feather->template
-            ->setPageInfo(array(
-                'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages'), $this->inboxes[$fid]['name']),
+        $this->generateMenu($this->inboxes[$args['inbox_id']]['name']);
+        View::addAsset('js', 'style/imports/common.js', array('type' => 'text/javascript'));
+        View::setPageInfo(array(
+                'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages'), $this->inboxes[$args['inbox_id']]['name']),
                 'admin_console' => true,
                 'inboxes' => $this->inboxes,
-                'current_inbox_id' => $fid,
+                'current_inbox_id' => $args['inbox_id'],
                 'paging_links' => $paging_links,
-                'rightLink' => ['link' => $this->feather->urlFor('Conversations.send'), 'text' => __('Send', 'private_messages')],
-                'conversations' => $this->model->getConversations($fid, $uid, $this->feather->user['disp_topics'], $start_from)
+                'rightLink' => ['link' => Router::pathFor('Conversations.send'), 'text' => __('Send', 'private_messages')],
+                'conversations' => $this->model->getConversations($args['inbox_id'], $uid, Container::get('user')['disp_topics'], $start_from)
             )
         )
         ->addTemplate('index.php')->display();
     }
-    
-    public function info()
-    {
-        // Update permissions
-        if ($this->feather->request->isPost()) {
-            $this->model->update_permissions();
-        }
 
-        $this->feather->template
-            ->setPageInfo(array(
-                    'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages')),
-                    'groups' => $this->model->fetch_groups(),
-                    'admin_console' => true,
-                )
-            )
-            ->addTemplate('info.php')->display();
-    }
-
-    public function delete()
+    public function delete($req, $res, $args)
     {
-        if (!$this->request->post('topics'))
+        if (!Input::post('topics'))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        $topics = $this->request->post('topics') && is_array($this->request->post('topics')) ? array_map('intval', $this->request->post('topics')) : array_map('intval', explode(',', $this->request->post('topics')));
+        $topics = Input::post('topics') && is_array(Input::post('topics')) ? array_map('intval', Input::post('topics')) : array_map('intval', explode(',', Input::post('topics')));
 
         if (empty($topics))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        if ( $this->request->post('delete_comply') )
+        if ( Input::post('delete_comply') )
         {
-            $uid = intval($this->feather->user->id);
+            $uid = intval(Container::get('user')->id);
             $this->model->delete($topics, $uid);
 
-            Url::redirect($this->feather->urlFor('Conversations.home'), __('Conversations deleted', 'private_messages'));
+            return Router::redirect(Router::pathFor('Conversations.home'), __('Conversations deleted', 'private_messages'));
         }
         else
         {
             // Display confirm delete form
-            $this->feather->template
-                ->setPageInfo(array(
-                    'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages')),
+            View::setPageInfo(array(
+                    'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages')),
                     'topics' => $topics,
                 )
             )
@@ -141,24 +127,24 @@ class PrivateMessages
         die();
     }
 
-    public function move()
+    public function move($req, $res, $args)
     {
-        if (!$this->request->post('topics'))
+        if (!Input::post('topics'))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        $topics = $this->request->post('topics') && is_array($this->request->post('topics')) ? array_map('intval', $this->request->post('topics')) : array_map('intval', explode(',', $this->request->post('topics')));
+        $topics = Input::post('topics') && is_array(Input::post('topics')) ? array_map('intval', Input::post('topics')) : array_map('intval', explode(',', Input::post('topics')));
 
         if (empty($topics))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        $uid = intval($this->feather->user->id);
+        $uid = intval(Container::get('user')->id);
 
-        if ( $this->request->post('move_comply') )
+        if ( Input::post('move_comply') )
         {
-            $move_to = $this->request->post('move_to') ? intval($this->request->post('move_to')) : 2;
+            $move_to = Input::post('move_to') ? intval(Input::post('move_to')) : 2;
 
             if ( $this->model->move($topics, $move_to, $uid) ) {
-                Url::redirect($this->feather->urlFor('Conversations.home', ['inbox_id' => $move_to]), __('Conversations moved', 'private_messages'));
+                return Router::redirect(Router::pathFor('Conversations.home', ['inbox_id' => $move_to]), __('Conversations moved', 'private_messages'));
             } else {
                 throw new Error(__('Error Move', 'private_messages'), 403);
             }
@@ -166,9 +152,8 @@ class PrivateMessages
 
         // Display move form
         if ($inboxes = $this->model->getUserFolders($uid)) {
-            $this->feather->template
-                ->setPageInfo(array(
-                    'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages')),
+            View::setPageInfo(array(
+                    'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages')),
                     'topics' => $topics,
                     'inboxes' => $inboxes,
                 )
@@ -181,26 +166,40 @@ class PrivateMessages
         die();
     }
 
-    public function markRead($read = true)
+    public function markRead($req, $res, $args)
     {
+        $read = false;
+
+        if (isset($args['read'])) {
+            $read = true;
+        }
+
         $viewed = ($read == true) ? '1' : '0';
 
-        if (!$this->request->post('topics'))
+        if (!Input::post('topics'))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        $topics = $this->request->post('topics') && is_array($this->request->post('topics')) ? array_map('intval', $this->request->post('topics')) : array_map('intval', explode(',', $this->request->post('topics')));
+        $topics = Input::post('topics') && is_array(Input::post('topics')) ? array_map('intval', Input::post('topics')) : array_map('intval', explode(',', Input::post('topics')));
 
         if (empty($topics))
             throw new Error(__('No conv selected', 'private_messages'), 403);
 
-        $this->model->updateConversation($topics, $this->feather->user->id, ['viewed' => $viewed]);
+        $this->model->updateConversation($topics, Container::get('user')->id, ['viewed' => $viewed]);
 
-        Url::redirect($this->feather->urlFor('Conversations.home', ['inbox_id' => $this->request->post('inbox_id')]));
+        return Router::redirect(Router::pathFor('Conversations.home', ['inbox_id' => Input::post('inbox_id')]));
     }
 
-    public function send($uid = null, $conv_id = null)
+    public function send($req, $res, $args)
     {
-        if ($this->feather->request->isPost()) {
+        if (!isset($args['uid'])) {
+            $args['uid'] = null;
+        }
+
+        if (!isset($args['tid'])) {
+            $args['tid'] = null;
+        }
+
+        if (Request::isPost()) {
             // First raw validation
             $data = array_merge(array(
                 'username' => null,
@@ -208,29 +207,30 @@ class PrivateMessages
                 'message' => null,
                 'smilies' => 0,
                 'preview' => null,
-            ), $this->feather->request->post());
+            ), Request::getParsedBody());
             $data = array_map(array('FeatherBB\Core\Utils', 'trim'), $data);
 
             $conv = false;
-            if (!is_null($conv_id)) {
-                if ($conv_id < 1) {
+
+            if (!is_null($args['tid'])) {
+                if ($args['tid'] < 1) {
                     throw new Error('Wrong conversation ID', 400);
                 }
-                if (!$conv = $this->model->getConversation($conv_id, $this->feather->user->id)) {
+                if (!$conv = $this->model->getConversation($args['tid'], Container::get('user')->id)) {
                     throw new Error('Unknown conversation ID', 400);
                 }
             }
 
             // Preview message
-            if ($this->feather->request->post('preview')) {
+            if (Input::post('preview')) {
                 // Make breadcrumbs
                 $this->crumbs[] = __('Reply', 'private_messages');
                 $this->crumbs[] = __('Preview');
                 Utils::generateBreadcrumbs($this->crumbs);
 
-                $this->feather->hooks->fire('conversationsPlugin.send.preview');
-                $msg = $this->feather->parser->parse_message($data['req_message'], $data['smilies']);
-                $this->feather->template->setPageInfo(array(
+                Container::get('hooks')->fire('conversationsPlugin.send.preview');
+                $msg = Container::get('parser')->parse_message($data['req_message'], $data['smilies']);
+                View::setPageInfo(array(
                     'parsed_message' => $msg,
                     'username' => Utils::escape($data['username']),
                     'subject' => Utils::escape($data['subject']),
@@ -238,8 +238,8 @@ class PrivateMessages
                 ))->addTemplate('send.php')->display();
             } else {
                 // Prevent flood
-                if (!is_null($data['preview']) && $this->feather->user['last_post'] != '' && ($this->feather->now - $this->feather->user['last_post']) < $this->feather->prefs->get($this->feather->user, 'post.min_interval')) {
-                    throw new Error(sprintf(__('Flood start'), $this->feather->prefs->get($this->feather->user, 'post.min_interval'), $this->feather->prefs->get($this->feather->user, 'post.min_interval') - ($this->feather->now - $this->feather->user['last_post'])), 429);
+                if (!is_null($data['preview']) && Container::get('user')['last_post'] != '' && (Container::get('now') - Container::get('user')['last_post']) < Container::get('prefs')->get(Container::get('user'), 'post.min_interval')) {
+                    throw new Error(sprintf(__('Flood start'), Container::get('prefs')->get(Container::get('user'), 'post.min_interval'), Container::get('prefs')->get(Container::get('user'), 'post.min_interval') - (Container::get('now') - Container::get('user')['last_post'])), 429);
                 }
 
                 if (!$conv) {
@@ -249,18 +249,18 @@ class PrivateMessages
                     }
 
                     // Avoid self messages
-                    if ($user->id == $this->feather->user->id) {
+                    if ($user->id == Container::get('user')->id) {
                         throw new Error('No self message', 403);
                     }
 
                     // Validate subject
-                    if ($this->feather->forum_settings['o_censoring'] == '1')
+                    if (ForumSettings::get('o_censoring') == '1')
                     $data['subject'] = Utils::trim(Utils::censor($data['subject']));
                     if (empty($data['subject'])) {
                         throw new Error('No subject or censored subject', 400);
                     } else if (Utils::strlen($data['subject']) > 70) {
                         throw new Error('Too long subject', 400);
-                    } else if ($this->feather->forum_settings['p_subject_all_caps'] == '0' && Utils::is_all_uppercase($data['subject']) && !$this->feather->user->is_admmod) {
+                    } else if (ForumSettings::get('p_subject_all_caps')['p_subject_all_caps'] == '0' && Utils::is_all_uppercase($data['subject']) && !Container::get('user')->is_admmod) {
                         throw new Error('All caps subject forbidden', 400);
                     }
                 }
@@ -268,13 +268,13 @@ class PrivateMessages
                 // TODO : inbox full
 
                 // Validate message
-                if ($this->feather->forum_settings['o_censoring'] == '1')
+                if (ForumSettings::get('o_censoring') == '1')
                 $data['req_message'] = Utils::trim(Utils::censor($data['req_message']));
                 if (empty($data['req_message'])) {
                     throw new Error('No message or censored message', 400);
-                } else if (Utils::strlen($data['req_message']) > $this->feather->forum_env['FEATHER_MAX_POSTSIZE']) {
+                } else if (Utils::strlen($data['req_message']) > ForumEnv::get('FEATHER_MAX_POSTSIZE')) {
                     throw new Error('Too long message', 400);
-                } else if ($this->feather->forum_settings['p_subject_all_caps'] == '0' && Utils::is_all_uppercase($data['subject']) && !$this->feather->user->is_admmod) {
+                } else if (ForumSettings::get('p_subject_all_caps')['p_subject_all_caps'] == '0' && Utils::is_all_uppercase($data['subject']) && !Container::get('user')->is_admmod) {
                     throw new Error('All caps message forbidden', 400);
                 }
 
@@ -286,31 +286,31 @@ class PrivateMessages
                 if (!$conv) {
                     $conv_data = array(
                         'subject'    =>    $data['subject'],
-                        'poster'    =>    $this->feather->user->username,
-                        'poster_id'    =>    $this->feather->user->id,
+                        'poster'    =>    Container::get('user')->username,
+                        'poster_id'    =>    Container::get('user')->id,
                         'num_replies'    =>    0,
-                        'last_post'    =>    $this->feather->now,
-                        'last_poster'    =>    $this->feather->user->username);
-                    $conv_id = $this->model->addConversation($conv_data);
+                        'last_post'    =>    Container::get('now'),
+                        'last_poster'    =>    Container::get('user')->username);
+                    $args['tid'] = $this->model->addConversation($conv_data);
                 }
-                if ($conv_id) {
+                if ($args['tid']) {
                     $msg_data = array(
-                        'poster'    =>    $this->feather->user->username,
-                        'poster_id'    =>    $this->feather->user->id,
-                        'poster_ip'    =>    $this->feather->request->getIp(),
+                        'poster'    =>    Container::get('user')->username,
+                        'poster_id'    =>    Container::get('user')->id,
+                        'poster_ip'    =>    Utils::getIp(),
                         'message'    =>    $data['req_message'],
                         'hide_smilies'    =>    $data['smilies'],
-                        'sent'    =>    $this->feather->now,
+                        'sent'    =>    Container::get('now'),
                     );
                     if ($conv) {
                         // Reply to an existing conversation
-                        if ($msg_id = $this->model->addMessage($msg_data, $conv_id)) {
-                            Url::redirect($this->feather->urlFor('Conversations.home'), sprintf(__('Reply success', 'private_messages'), $conv->subject));
+                        if ($msg_id = $this->model->addMessage($msg_data, $args['tid'])) {
+                            return Router::redirect(Router::pathFor('Conversations.home'), sprintf(__('Reply success', 'private_messages'), $conv->subject));
                         }
                     } else {
                         // Add message in conversation + add receiver (create new conversation)
-                        if ($msg_id = $this->model->addMessage($msg_data, $conv_id, array($user->id, $this->feather->user->id))) {
-                            Url::redirect($this->feather->urlFor('Conversations.home'), sprintf(__('Send success', 'private_messages'), $user->username));
+                        if ($msg_id = $this->model->addMessage($msg_data, $args['tid'], array($user->id, Container::get('user')->id))) {
+                            return Router::redirect(Router::pathFor('Conversations.home'), sprintf(__('Send success', 'private_messages'), $user->username));
                         }
                     }
                 } else {
@@ -318,33 +318,33 @@ class PrivateMessages
                 }
             }
         } else {
-            $this->feather->hooks->fire('conversationsPlugin.send.display');
+            Container::get('hooks')->fire('conversationsPlugin.send.display');
             // New conversation
-            if (!is_null($uid)) {
-                if ($uid < 2) {
+            if (!is_null($args['uid'])) {
+                if ($args['uid'] < 2) {
                     throw new Error('Wrong user ID', 400);
                 }
-                if ($user = $this->model->getUserByID($uid)) {
-                    $this->feather->template->setPageInfo(array('username' => Utils::escape($user->username)));
+                if ($user = $this->model->getUserByID($args['uid'])) {
+                    View::setPageInfo(array('username' => Utils::escape($user->username)));
                 } else {
                     throw new Error('Unable to find user', 400);
                 }
             }
             // Reply
-            if (!is_null($conv_id)) {
-                if ($conv_id < 1) {
+            if (!is_null($args['tid'])) {
+                if ($args['tid'] < 1) {
                     throw new Error('Wrong conversation ID', 400);
                 }
-                if ($conv = $this->model->getConversation($conv_id, $this->feather->user->id)) {
+                if ($conv = $this->model->getConversation($args['tid'], Container::get('user')->id)) {
                     $inbox = DB::for_table('pms_folders')->find_one($conv->folder_id);
-                    $this->crumbs[$this->feather->urlFor('Conversations.home', ['inbox_id' => $inbox['id']])] = $inbox['name'];
+                    $this->crumbs[Router::pathFor('Conversations.home', ['inbox_id' => $inbox['id']])] = $inbox['name'];
                     $this->crumbs[] = __('Reply', 'private_messages');
                     $this->crumbs[] = $conv['subject'];
                     Utils::generateBreadcrumbs($this->crumbs);
-                    return $this->feather->template->setPageInfo(array(
+                    return View::setPageInfo(array(
                         'current_inbox' => $inbox,
                         'conv' => $conv,
-                        'msg_data' => $this->model->getMessagesFromConversation($conv_id, $this->feather->user->id, 5)
+                        'msg_data' => $this->model->getMessagesFromConversation($args['tid'], Container::get('user')->id, 5)
                     ))->addTemplate('reply.php')->display();
                 } else {
                     throw new Error('Unknown conversation ID', 400);
@@ -353,71 +353,78 @@ class PrivateMessages
             $this->crumbs[] = __('Send', 'private_messages');
             if(isset($user)) $this->crumbs[] = $user->username;
             Utils::generateBreadcrumbs($this->crumbs);
-            $this->feather->template->addTemplate('send.php')->display();
+            View::addTemplate('send.php')->display();
         }
     }
 
-    public function reply($conv_id = null)
+    public function reply($req, $res, $args)
     {
-        return $this->send(null, $conv_id);
+        return $this->send($req, $res, $args);
     }
 
-    public function show($conv_id = null, $page = null)
+    public function show($req, $res, $args)
     {
+        if (!isset($args['tid'])) {
+            $args['tid'] = null;
+        }
+
+        if (!isset($args['page'])) {
+            $args['page'] = null;
+        }
+
         // First checks
-        if ($conv_id < 1) {
+        if ($args['tid'] < 1) {
             throw new Error('Wrong conversation ID', 400);
         }
-        if (!$conv = $this->model->getConversation($conv_id, $this->feather->user->id)) {
+        if (!$conv = $this->model->getConversation($args['tid'], Container::get('user')->id)) {
             throw new Error('Unknown conversation ID', 404);
-        } else if ($this->model->isDeleted($conv_id, $this->feather->user->id)) {
+        } else if ($this->model->isDeleted($args['tid'], Container::get('user')->id)) {
             throw new Error('The conversation has been deleted', 404);
         }
 
         // Set conversation as viewed
         if ($conv['viewed'] == 0) {
-            if (!$this->model->setViewed($conv_id, $this->feather->user->id)) {
+            if (!$this->model->setViewed($args['tid'], Container::get('user')->id)) {
                 throw new Error('Unable to set conversation as viewed', 500);
             }
         }
 
-        $num_pages = ceil($conv['num_replies'] / $this->feather->user['disp_topics']);
-        $p = (!is_null($page) || $page <= 1 || $page > $num_pages) ? 1 : intval($page);
-        $start_from = $this->feather->user['disp_topics'] * ($p - 1);
-        $paging_links = Url::paginate($num_pages, $p, $this->feather->urlFor('Conversations.show', ['tid' => $conv_id]).'/#');
+        $num_pages = ceil($conv['num_replies'] / Container::get('user')['disp_topics']);
+        $p = (!is_null($args['page']) || $args['page'] <= 1 || $args['page'] > $num_pages) ? 1 : intval($args['page']);
+        $start_from = Container::get('user')['disp_topics'] * ($p - 1);
+        $paging_links = Url::paginate($num_pages, $p, Router::pathFor('Conversations.show', ['tid' => $args['tid']]).'/#');
 
-        $this->inboxes = $this->model->getInboxes($this->feather->user->id);
+        $this->inboxes = $this->model->getInboxes(Container::get('user')->id);
 
-        $this->crumbs[$this->feather->urlFor('Conversations.home', ['inbox_id' => $conv['folder_id']])] = $this->inboxes[$conv['folder_id']]['name'];
+        $this->crumbs[Router::pathFor('Conversations.home', ['inbox_id' => $conv['folder_id']])] = $this->inboxes[$conv['folder_id']]['name'];
         $this->crumbs[] = __('My conversations', 'private_messages');
         $this->crumbs[] = $conv['subject'];
         Utils::generateBreadcrumbs($this->crumbs, array(
-            'link' => $this->feather->urlFor('Conversations.reply', ['tid' => $conv['id']]),
+            'link' => Router::pathFor('Conversations.reply', ['tid' => $conv['id']]),
             'text' => __('Reply', 'private_messages')
         ));
         $this->generateMenu($this->inboxes[$conv['folder_id']]['name']);
-        $this->feather->template
-            ->setPageInfo(array(
-                'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages'), $this->model->getUserFolders($this->feather->user->id)[$conv['folder_id']]['name'], Utils::escape($conv['subject'])),
+        View::setPageInfo(array(
+                'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages'), $this->model->getUserFolders(Container::get('user')->id)[$conv['folder_id']]['name'], Utils::escape($conv['subject'])),
                 'admin_console' => true,
                 'paging_links' => $paging_links,
                 'start_from' => $start_from,
                 'cur_conv' => $conv,
-                'rightLink' => ['link' => $this->feather->urlFor('Conversations.reply', ['tid' => $conv['id']]), 'text' => __('Reply', 'private_messages')],
-                'messages' => $this->model->getMessages($conv['id'], $this->feather->user['disp_topics'], $start_from)
+                'rightLink' => ['link' => Router::pathFor('Conversations.reply', ['tid' => $conv['id']]), 'text' => __('Reply', 'private_messages')],
+                'messages' => $this->model->getMessages($conv['id'], Container::get('user')['disp_topics'], $start_from)
             )
         )
         ->addTemplate('show.php')->display();
     }
 
-    public function blocked()
+    public function blocked($req, $res, $args)
     {
         $errors = array();
 
-        $username = $this->request->post('req_username') ? Utils::trim(Utils::escape($this->request->post('req_username'))) : '';
-        if ($this->request->post('add_block'))
+        $username = Input::post('req_username') ? Utils::trim(Utils::escape(Input::post('req_username'))) : '';
+        if (Input::post('add_block'))
         {
-            if ($username == $this->feather->user->username)
+            if ($username == Container::get('user')->username)
                 $errors[] = __('No block self', 'private_messages');
 
             if (!($user_infos = $this->model->getUserByName($username)) || $username == __('Guest'))
@@ -425,64 +432,63 @@ class PrivateMessages
 
             if (empty($errors))
             {
-                if ($user_infos->group_id == $this->feather->forum_env['FEATHER_ADMIN'])
+                if ($user_infos->group_id == ForumEnv::get('FEATHER_ADMIN'))
                     $errors[] = sprintf(__('User is admin', 'private_messages'), Utils::escape($username));
-                elseif ($user_infos->group_id == $this->feather->forum_env['FEATHER_MOD'])
+                elseif ($user_infos->group_id == ForumEnv::get('FEATHER_MOD'))
                     $errors[] = sprintf(__('User is mod', 'private_messages'), Utils::escape($username));
 
-                if ($this->model->checkBlock($this->feather->user->id, $user_infos->id))
+                if ($this->model->checkBlock(Container::get('user')->id, $user_infos->id))
                     $errors[] = sprintf(__('Already blocked', 'private_messages'), Utils::escape($username));
             }
 
             if (empty($errors))
             {
                 $insert = array(
-                    'user_id'    =>    $this->feather->user->id,
+                    'user_id'    =>    Container::get('user')->id,
                     'block_id'    =>    $user_infos->id,
                 );
 
                 $this->model->addBlock($insert);
-                Url::redirect($this->feather->urlFor('Conversations.blocked'), __('Block added', 'private_messages'));
+                return Router::redirect(Router::pathFor('Conversations.blocked'), __('Block added', 'private_messages'));
             }
         }
-        else if ($this->request->post('remove_block'))
+        else if (Input::post('remove_block'))
         {
-            $id = intval(key($this->request->post('remove_block')));
+            $id = intval(key(Input::post('remove_block')));
             // Before we do anything, check we blocked this user
-            if (!$this->model->checkBlock(intval($this->feather->user->id), $id))
+            if (!$this->model->checkBlock(intval(Container::get('user')->id), $id))
                 throw new Error(__('No permission'), 403);
 
-            $this->model->removeBlock(intval($this->feather->user->id), $id);
-            Url::redirect($this->feather->urlFor('Conversations.blocked'), __('Block removed', 'private_messages'));
+            $this->model->removeBlock(intval(Container::get('user')->id), $id);
+            return Router::redirect(Router::pathFor('Conversations.blocked'), __('Block removed', 'private_messages'));
         }
 
         Utils::generateBreadcrumbs(array(
-            $this->feather->urlFor('Conversations.home') => __('PMS', 'private_messages'),
+            Router::pathFor('Conversations.home') => __('PMS', 'private_messages'),
             __('Options'),
             __('Blocked Users', 'private_messages')
         ));
 
         $this->generateMenu('blocked');
-        $this->feather->template
-            ->setPageInfo(array(
-                'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages'), __('Blocked Users', 'private_messages')),
+        View::setPageInfo(array(
+                'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages'), __('Blocked Users', 'private_messages')),
                 'admin_console' => true,
                 'errors' => $errors,
                 'username' => $username,
                 'required_fields' => array('req_username' => __('Add block', 'private_messages')),
-                'blocks' => $this->model->getBlocked($this->feather->user->id),
+                'blocks' => $this->model->getBlocked(Container::get('user')->id),
             )
         )
         ->addTemplate('blocked.php')->display();
     }
 
-    public function folders()
+    public function folders($req, $res, $args)
     {
         $errors = array();
 
-        if ($this->request->post('add_folder'))
+        if (Input::post('add_folder'))
         {
-            $folder = $this->request->post('req_folder') ? Utils::trim(Utils::escape($this->request->post('req_folder'))) : '';
+            $folder = Input::post('req_folder') ? Utils::trim(Utils::escape(Input::post('req_folder'))) : '';
 
             if ($folder == '')
                 $errors[] = __('No folder name', 'private_messages');
@@ -490,7 +496,7 @@ class PrivateMessages
                 $errors[] = __('Folder too short', 'private_messages');
             else if (Utils::strlen($folder) > 30)
                 $errors[] = __('Folder too long', 'private_messages');
-            else if ($this->feather->forum_settings['o_censoring'] == '1' && Utils::censor($folder) == '')
+            else if (ForumSettings::get('o_censoring') == '1' && Utils::censor($folder) == '')
                 $errors[] = __('No folder after censoring', 'private_messages');
 
             // TODO: Check perms when ready
@@ -510,21 +516,21 @@ class PrivateMessages
             if (empty($errors))
             {
                 $insert = array(
-                    'user_id'    =>    $this->feather->user->id,
+                    'user_id'    =>    Container::get('user')->id,
                     'name'    =>    $folder
                 );
 
                 $this->model->addFolder($insert);
-                Url::redirect($this->feather->urlFor('Conversations.folders'), __('Folder added', 'private_messages'));
+                return Router::redirect(Router::pathFor('Conversations.folders'), __('Folder added', 'private_messages'));
             }
         }
-        else if ($this->request->post('update_folder'))
+        else if (Input::post('update_folder'))
         {
-            $id = intval(key($this->request->post('update_folder')));
+            $id = intval(key(Input::post('update_folder')));
             var_dump($id);
 
             $errors = array();
-            $folder = Utils::trim($this->request->post('folder')[$id]);
+            $folder = Utils::trim(Input::post('folder')[$id]);
 
             if ($folder == '')
                 $errors[] = __('No folder name', 'private_messages');
@@ -532,7 +538,7 @@ class PrivateMessages
                 $errors[] = __('Folder too short', 'private_messages');
             else if (Utils::strlen($folder) > 30)
                 $errors[] = __('Folder too long', 'private_messages');
-            else if ($this->feather->forum_settings['o_censoring'] == '1' && Utils::censor($folder) == '')
+            else if (ForumSettings::get('o_censoring') == '1' && Utils::censor($folder) == '')
                 $errors[] = __('No folder after censoring', 'private_messages');
 
             if (empty($errors))
@@ -541,35 +547,34 @@ class PrivateMessages
                     'name'    =>    $folder,
                 );
 
-                if ($this->model->updateFolder($this->feather->user->id, $id, $update))
-                    Url::redirect($this->feather->urlFor('Conversations.folders'), __('Folder updated', 'private_messages'));
+                if ($this->model->updateFolder(Container::get('user')->id, $id, $update))
+                    return Router::redirect(Router::pathFor('Conversations.folders'), __('Folder updated', 'private_messages'));
                 else
                     throw new Error(__('Error'), 403);
             }
         }
-        else if ($this->request->post('remove_folder'))
+        else if (Input::post('remove_folder'))
         {
-            $id = intval(key($this->request->post('remove_folder')));
+            $id = intval(key(Input::post('remove_folder')));
             // Before we do anything, check we blocked this user
-            if (!$this->model->checkFolderOwner($id, intval($this->feather->user->id)))
+            if (!$this->model->checkFolderOwner($id, intval(Container::get('user')->id)))
                 throw new Error(__('No permission'), 403);
 
-            if ($this->model->removeFolder($this->feather->user->id, $id))
-                Url::redirect($this->feather->urlFor('Conversations.folders'), __('Folder removed', 'private_messages'));
+            if ($this->model->removeFolder(Container::get('user')->id, $id))
+                return Router::redirect(Router::pathFor('Conversations.folders'), __('Folder removed', 'private_messages'));
             else
                 throw new Error(__('Error'), 403);
         }
 
         Utils::generateBreadcrumbs(array(
-            $this->feather->urlFor('Conversations.home') => __('PMS', 'private_messages'),
+            Router::pathFor('Conversations.home') => __('PMS', 'private_messages'),
             __('Options'),
             __('My Folders', 'private_messages')
         ));
 
         $this->generateMenu('folders');
-        $this->feather->template
-            ->setPageInfo(array(
-                'title' => array(Utils::escape($this->feather->config['o_board_title']), __('PMS', 'private_messages'), __('Blocked Users', 'private_messages')),
+        View::setPageInfo(array(
+                'title' => array(Utils::escape(ForumSettings::get('o_board_title')), __('PMS', 'private_messages'), __('Blocked Users', 'private_messages')),
                 'admin_console' => true,
                 'errors' => $errors
             )
@@ -580,9 +585,9 @@ class PrivateMessages
     public function generateMenu($page = '')
     {
         if (!isset($this->inboxes))
-            $this->inboxes = $this->model->getInboxes($this->feather->user->id);
+            $this->inboxes = $this->model->getInboxes(Container::get('user')->id);
 
-        $this->feather->template->setPageInfo(array(
+        View::setPageInfo(array(
             'page'    =>    $page,
             'inboxes'    =>    $this->inboxes,
             ), 1

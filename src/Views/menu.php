@@ -6,6 +6,7 @@
 * and Rickard Andersson (C) 2002-2008 PunBB
 * License: http://www.gnu.org/licenses/gpl.html GPL version 2 or higher.
 */
+
 use FeatherBB\Core\Utils;
 
 // Make sure no one attempts to run this script "directly"
@@ -28,7 +29,7 @@ if(!empty($inboxes)):
         $totalMsg += $inbox['nb_msg'];
 ?>
                                     <li<?= ($page == $inbox['name']) ? ' class="isactive"' : ''; ?>>
-                                        <a href="<?= $feather->urlFor('Conversations.home', ['inbox_id' => $iid]) ?>"><?= Utils::escape($inbox['name']) ?><?= (intval($inbox['nb_msg']) > 0) ? ' ('.$inbox['nb_msg'].')' : ''; ?></a>
+                                        <a href="<?= Router::pathFor('Conversations.home', ['inbox_id' => $iid]) ?>"><?= Utils::escape($inbox['name']) ?><?= (intval($inbox['nb_msg']) > 0) ? ' ('.$inbox['nb_msg'].')' : ''; ?></a>
                                     </li>
 <?php endforeach;
 endif; ?>
@@ -50,8 +51,8 @@ endif; ?>
                     <div class="box">
                         <div class="inbox">
                             <ul>
-                                <li<?= ($page == 'blocked') ? ' class="isactive"' : ''; ?>><a href="<?= $feather->urlFor('Conversations.blocked') ?>"><?php _e('Blocked Users', 'private_messages') ?></a></li>
-                                <li<?= ($page == 'folders') ? ' class="isactive"' : ''; ?>><a href="<?= $feather->urlFor('Conversations.folders') ?>"><?php _e('My Folders', 'private_messages') ?></a></li>
+                                <li<?= ($page == 'blocked') ? ' class="isactive"' : ''; ?>><a href="<?= Router::pathFor('Conversations.blocked') ?>"><?php _e('Blocked Users', 'private_messages') ?></a></li>
+                                <li<?= ($page == 'folders') ? ' class="isactive"' : ''; ?>><a href="<?= Router::pathFor('Conversations.folders') ?>"><?php _e('My Folders', 'private_messages') ?></a></li>
                             </ul>
                         </div>
                     </div>

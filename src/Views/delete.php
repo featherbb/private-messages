@@ -1,11 +1,11 @@
         <div class="blockform">
             <h2><span><?php _e('Warning') ?></span></h2>
             <div class="box">
-                <form method="post" action="<?= $feather->request()->getPath(); ?>">
+                <form method="post" action="">
                     <input type="hidden" name="topics" value="<?= implode(",",$topics); ?>" />
                     <input name="delete_comply" value="1" type="hidden" />
                     <input name="action" value="delete" type="hidden" />
-                    <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                    <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                     <div class="inform warning">
                         <div class="forminfo">
                             <p><?php _e('Confirm delete', 'private_messages'); ?></p>

@@ -5,11 +5,11 @@ use FeatherBB\Core\Utils;
         <div class="blockform">
             <h2><span><?php _e('Move conversations', 'private_messages') ?></span></h2>
             <div class="box">
-                <form method="post" action="<?= $feather->request()->getPath(); ?>">
+                <form method="post" action="">
                     <input type="hidden" name="topics" value="<?= implode(",",$topics); ?>" />
                     <input name="move_comply" value="1" type="hidden" />
                     <input name="action" value="move" type="hidden" />
-                    <input type="hidden" name="<?= $csrf_key; ?>" value="<?= $csrf_token; ?>">
+                    <input type="hidden" name="csrf_name" value="<?= $csrf_name; ?>"><input type="hidden" name="csrf_value" value="<?= $csrf_value; ?>">
                     <div class="inform">
                         <fieldset>
                             <legend><?php _e('Move legend'); ?></legend>
