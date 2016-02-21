@@ -295,14 +295,14 @@ class PrivateMessages
                     ->set(array(
                         'conversation_id'    =>    $conv_id,
                         'user_id'    =>    $user,
-                        'viewed'    =>    (($user == Container::get('user')->id) ? '1' : '0')))
+                        'viewed'    =>    (($user == User::get()->id) ? '1' : '0')))
                     ->save();
             }
         } else {
             // Reply
             $notifs = DB::for_table('pms_data')
                 ->where('conversation_id', $conv_id)
-                ->where_not_equal('user_id', Container::get('user')->id)
+                ->where_not_equal('user_id', User::get()->id)
                 ->find_result_set();
             $notifs->set('viewed', 0)
                 ->save();

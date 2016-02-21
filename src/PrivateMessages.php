@@ -43,9 +43,9 @@ class PrivateMessages extends BasePlugin
 
     public function addNavlink($navlinks)
     {
-        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.Container::get('user')->language.'/private-messages.mo');
-        if (!Container::get('user')->is_guest) {
-            $nbUnread = Model\PrivateMessages::countUnread(Container::get('user')->id);
+        translate('private_messages', 'private-messages');
+        if (!User::get()->is_guest) {
+            $nbUnread = Model\PrivateMessages::countUnread(User::get()->id);
             $count = ($nbUnread > 0) ? ' ('.$nbUnread.')' : '';
             $navlinks[] = '4 = <a href="'.Router::pathFor('Conversations.home').'">PMS'.$count.'</a>';
             if ($nbUnread > 0) {
@@ -60,7 +60,7 @@ class PrivateMessages extends BasePlugin
 
     public function install()
     {
-        load_textdomain('private_messages', dirname(__FILE__).'/lang/'.ForumSettings::get('o_default_lang').'/private-messages.mo');
+        translate('private_messages', 'private-messages', ForumSettings::get('o_default_lang'));
 
         $database_scheme = array(
             'pms_data' => "CREATE TABLE IF NOT EXISTS %t% (

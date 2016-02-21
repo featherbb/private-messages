@@ -24,7 +24,7 @@ class LoggedIn
     public function __invoke($request, $response, $next)
     {
         // Display error page
-        if (Container::get('user')->is_guest) {
+        if (User::get()->is_guest) {
             throw new Error(__('No permission'), 403);
         }
         $response = $next($request, $response);
