@@ -98,7 +98,7 @@ class PrivateMessages
     }
 
 
-    public function info()
+    public function info($req, $res, $args)
     {
         // Update permissions
         if (Request::isPost()) {
