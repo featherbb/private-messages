@@ -3,6 +3,7 @@
     "title": "Private messages",
     "description": "Manage your private conversations with other members of the community.",
     "version": "0.2.3",
+    "keywords": ["featherbb", "private message", "messaging"],
     "author": {
         "name": "beaver"
     }
