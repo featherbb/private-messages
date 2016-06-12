@@ -69,9 +69,9 @@ class PrivateMessages
             }
         }
         // Page data
-        $num_pages = ceil($this->inboxes[$args['inbox_id']]['nb_msg'] / User::get()['disp_topics']);
+        $num_pages = ceil($this->inboxes[$args['inbox_id']]['nb_msg'] / User::getPref('disp.topics'));
         $p = (!isset($args['page']) || $args['page'] <= 1 || $args['page'] > $num_pages) ? 1 : intval($args['page']);
-        $start_from = User::get()['disp_topics'] * ($p - 1);
+        $start_from = User::getPref('disp.topics') * ($p - 1);
         $paging_links = Url::paginate($num_pages, $p, Router::pathFor('Conversations.home', ['id' => $args['inbox_id']]).'/#');
 
         // Make breadcrumbs
@@ -91,7 +91,7 @@ class PrivateMessages
                 'current_inbox_id' => $args['inbox_id'],
                 'paging_links' => $paging_links,
                 'rightLink' => ['link' => Router::pathFor('Conversations.send'), 'text' => __('Send', 'private_messages')],
-                'conversations' => $this->model->getConversations($args['inbox_id'], $uid, User::get()['disp_topics'], $start_from)
+                'conversations' => $this->model->getConversations($args['inbox_id'], $uid, User::getPref('disp.topics'), $start_from)
             )
         )
         ->addTemplate('index.php')->display();
@@ -405,9 +405,9 @@ class PrivateMessages
             }
         }
 
-        $num_pages = ceil($conv['num_replies'] / User::get()['disp_topics']);
+        $num_pages = ceil($conv['num_replies'] / User::getPref('disp.topics'));
         $p = (!is_null($args['page']) || $args['page'] <= 1 || $args['page'] > $num_pages) ? 1 : intval($args['page']);
-        $start_from = User::get()['disp_topics'] * ($p - 1);
+        $start_from = User::getPref('disp.topics') * ($p - 1);
         $paging_links = Url::paginate($num_pages, $p, Router::pathFor('Conversations.show', ['tid' => $args['tid']]).'/#');
 
         $this->inboxes = $this->model->getInboxes(User::get()->id);
@@ -427,7 +427,7 @@ class PrivateMessages
                 'start_from' => $start_from,
                 'cur_conv' => $conv,
                 'rightLink' => ['link' => Router::pathFor('Conversations.reply', ['tid' => $conv['id']]), 'text' => __('Reply', 'private_messages')],
-                'messages' => $this->model->getMessages($conv['id'], User::get()['disp_topics'], $start_from)
+                'messages' => $this->model->getMessages($conv['id'], User::getPref('disp.topics'), $start_from)
             )
         )
         ->addTemplate('show.php')->display();
