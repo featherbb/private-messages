@@ -46,16 +46,16 @@ class PrivateMessages
         if ($action = Input::post('action')) {
             switch ($action) {
                 case 'move':
-                    $this->move();
+                    $this->move($req, $res, $args);
                     break;
                 case 'delete':
-                    $this->delete();
+                    $this->delete($req, $res, $args);
                     break;
                 case 'read':
-                    $this->markRead();
+                    $this->markRead($req, $res, $args);
                     break;
                 case 'unread':
-                    $this->markRead(0);
+                    $this->markRead($req, $res, $args);
                     break;
                 default:
                     return Router::redirect(Router::pathFor('Conversations.home', ['inbox_id' => Input::post('inbox_id')]));
